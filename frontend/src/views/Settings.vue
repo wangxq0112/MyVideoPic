@@ -36,12 +36,6 @@ const SECTIONS = [
   { key: 'about', label: '关于', icon: 'info' },
 ]
 
-const PLAYERS = [
-  { key: 'potplayer', label: 'PotPlayer' },
-  { key: 'vlc', label: 'VLC' },
-  { key: 'mpc', label: 'MPC-HC' },
-]
-
 const DENSITIES = [
   { key: 'compact', label: '紧凑' },
   { key: 'comfortable', label: '标准' },
@@ -73,6 +67,7 @@ function openForm(lib = null) {
     error: '',
     saving: false,
   })
+  if (!lib) pickerOpen.value = true
 }
 
 /** 选完文件夹自动填个名字，省得用户再想 */
@@ -401,17 +396,10 @@ onMounted(() => {
               <div class="mv-row__text">
                 <div class="mv-row__title">外部播放器</div>
                 <div class="mv-row__desc">
-                  遇到浏览器不支持的编码时唤起它（需本机已安装并注册了对应协议）。
+                  遇到浏览器不支持的编码时，将尝试用系统默认应用打开文件。
                 </div>
               </div>
-              <select
-                class="mv-select mv-row__ctl"
-                :value="settings.playback.external_player"
-                aria-label="外部播放器"
-                @change="setPref('playback', 'external_player', $event.target.value)"
-              >
-                <option v-for="p in PLAYERS" :key="p.key" :value="p.key">{{ p.label }}</option>
-              </select>
+              <div class="mv-row__ctl mv-dim">系统默认播放器</div>
             </div>
           </div>
         </section>
@@ -626,14 +614,15 @@ onMounted(() => {
           <span class="mv-field__label">文件夹路径</span>
           <div class="mv-row-flex">
             <input
-              v-model="form.folder_path"
+              :value="form.folder_path"
               class="mv-input mv-grow"
               type="text"
-              placeholder="D:\Movies"
+              placeholder="请先选择文件夹"
+              readonly
               spellcheck="false"
             />
             <button class="mv-btn mv-btn--ghost" type="button" @click="pickerOpen = true">
-              <Icon name="folderOpen" :size="15" /> 浏览
+              <Icon name="folderOpen" :size="15" /> 选择
             </button>
           </div>
           <span class="mv-field__hint">必须是本机的绝对路径；文件夹内容只读，不会被修改。</span>

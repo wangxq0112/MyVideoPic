@@ -23,7 +23,6 @@ const parent = ref(null)
 const drives = ref([])
 const dirs = ref([])
 const counts = ref({ video: 0, photo: 0 })
-const manual = ref('')
 
 const here = computed(() =>
   props.kind === 'video' ? counts.value.video : counts.value.photo)
@@ -46,11 +45,6 @@ async function go(path) {
   } finally {
     loading.value = false
   }
-}
-
-function confirmManual() {
-  const p = manual.value.trim().replace(/^"|"$/g, '')
-  if (p) emit('pick', p)
 }
 
 onMounted(() => go(''))
@@ -111,23 +105,6 @@ onMounted(() => go(''))
     </div>
 
     <template #foot>
-      <div class="mv-grow" style="min-width: 0">
-        <input
-          v-model="manual"
-          class="mv-input"
-          type="text"
-          placeholder="或直接粘贴路径，如 D:\Movies"
-          @keydown.enter.prevent="confirmManual"
-        />
-      </div>
-      <button
-        v-if="manual.trim()"
-        class="mv-btn mv-btn--ghost"
-        type="button"
-        @click="confirmManual"
-      >
-        使用此路径
-      </button>
       <button
         class="mv-btn mv-btn--primary"
         type="button"

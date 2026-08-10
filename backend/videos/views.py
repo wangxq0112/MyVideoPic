@@ -729,7 +729,7 @@ DEFAULT_SETTINGS = {
         'default_volume': 80,
         'seek_step': 10,
         'remember_position': True,
-        'external_player': 'potplayer',
+        'external_player': 'system',
     },
     'appearance': {
         'grid_density': 'comfortable',   # compact | comfortable | spacious

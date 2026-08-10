@@ -232,7 +232,7 @@ onBeforeUnmount(() => {
             <div class="mv-empty__actions">
               <a
                 class="mv-btn mv-btn--primary"
-                :href="localPlayerUrl(video.absolute_path, settings.playback.external_player)"
+                :href="localPlayerUrl(video.absolute_path)"
               >
                 <Icon name="external" :size="15" /> 用本地播放器打开
               </a>
@@ -289,7 +289,7 @@ onBeforeUnmount(() => {
         <a
           v-if="playable"
           class="mv-btn mv-btn--ghost"
-          :href="localPlayerUrl(video.absolute_path, settings.playback.external_player)"
+          :href="localPlayerUrl(video.absolute_path)"
         >
           <Icon name="external" :size="15" /> 本地播放器
         </a>
