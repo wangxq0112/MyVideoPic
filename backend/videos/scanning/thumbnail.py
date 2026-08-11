@@ -2,11 +2,23 @@
 
 import os
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 from django.conf import settings
 
+from ..image_utils import generate_image_thumbnail
 from .extract import _SUBPROCESS_FLAGS
+
+
+@dataclass(frozen=True)
+class PreparedPhoto:
+    """在 SQLite 写入路径外准备好的只读图片扫描结果。"""
+
+    file_size: int
+    file_mtime: float
+    cover_path: str
+    metadata: dict
 
 
 def generate_video_thumbnail(path: str, media_id: str, duration: float | None) -> str:
@@ -45,3 +57,19 @@ def remove_thumbnail(path: str) -> None:
             os.remove(path)
         except OSError:
             pass
+
+
+def prepare_photo_thumbnail(path: str, media_id: str) -> PreparedPhoto | None:
+    """读取一张图片并生成缓存缩略图，不访问数据库。"""
+    try:
+        file_info = os.stat(path)
+    except OSError:
+        return None
+
+    cover_path, metadata = generate_image_thumbnail(path, media_id)
+    return PreparedPhoto(
+        file_size=file_info.st_size,
+        file_mtime=file_info.st_mtime,
+        cover_path=cover_path,
+        metadata=metadata,
+    )

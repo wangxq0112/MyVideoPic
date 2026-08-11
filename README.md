@@ -1,25 +1,17 @@
 # MyVideoPic
 
-For AI-assisted follow-up development, read [AI_HANDOFF.md](AI_HANDOFF.md) before changing the project.
+后续使用 AI 维护项目时，修改代码前请先阅读 [AI_HANDOFF.md](AI_HANDOFF.md)。
 
-## Development Structure
+## 开发结构
 
-The application keeps one Django app and one Vue application. The files below
-are the extension points for future maintenance; they do not change the local
-or offline-only behavior described in this document.
+项目保持一个 Django 应用和一个 Vue 应用。以下文件是后续维护的主要入口，不会改变本文所述的本地、离线运行约束。
 
-- `backend/videos/scanner.py` coordinates one active scan at a time. Libraries
-  selected while a scan is active are queued for a follow-up scan.
-- `backend/videos/scanning/` contains the read-only scan helpers: `detect.py`,
-  `extract.py`, and `thumbnail.py`. Thumbnail output remains UUID-named under
-  `backend/.app_data/`.
-- `backend/videos/services.py` contains reusable library-detection logic that
-  is independent from Django request handling.
-- `frontend/src/api/` is organized into `client.js`, `media.js`,
-  `libraries.js`, `tasks.js`, and `settings.js`. `api.js` remains a compatible
-  facade for existing imports.
-- `frontend/src/styles/variables.css` provides semantic design tokens for new
-  components while the existing `mv-` design system remains in `style.css`.
+- `backend/videos/scanner.py` 协调同一时刻唯一的扫描任务。扫描进行时新选择的媒体库会进入后续扫描队列。
+- `backend/videos/scanning/` 放置只读扫描辅助函数：`detect.py`、`extract.py` 和 `thumbnail.py`。缩略图仍使用 UUID 命名并写入 `backend/.app_data/`。
+- 首次导入大量图片时，图片读取、EXIF 解析和缩略图编码最多使用两个工作线程并行执行；SQLite 编目写入保持单线程，避免数据库锁与高内存占用。
+- `backend/videos/services.py` 放置与 Django 请求处理无关、可复用的媒体库识别逻辑。
+- `frontend/src/api/` 按 `client.js`、`media.js`、`libraries.js`、`tasks.js` 与 `settings.js` 分层；`api.js` 保留为兼容既有导入的统一入口。
+- `frontend/src/styles/variables.css` 为新组件提供语义设计变量，现有 `mv-` 设计系统仍保留在 `style.css`。
 
 纯本地极简媒体中心。把硬盘上散落的视频和图片编目成一个能刷、能搜、能整理的库。
 

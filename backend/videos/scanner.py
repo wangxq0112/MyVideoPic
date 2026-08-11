@@ -19,14 +19,19 @@ import subprocess
 import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from django.conf import settings
 from django.utils import timezone
 
-from .image_utils import generate_image_thumbnail
 from .scanning.extract import extract_video_metadata
-from .scanning.thumbnail import generate_video_thumbnail, remove_thumbnail
+from .scanning.thumbnail import (
+    PreparedPhoto,
+    generate_video_thumbnail,
+    prepare_photo_thumbnail,
+    remove_thumbnail,
+)
 
 # ── 内存任务状态表（单用户本地应用，无需 Celery/Redis）──────
 _scan_tasks: dict[str, dict] = {}
@@ -36,6 +41,10 @@ _active_task_id: str | None = None
 # scan starts after the active scan has committed its record, so no selection is
 # silently skipped and the single-scan invariant still holds.
 _queued_library_ids: set[str] = set()
+
+# 首次导入时，解码与缩放图片最耗时。最多两个工作线程能提升常见电脑的
+# 吞吐量，又不会让大尺寸图片同时占用过多内存；SQLite 仍只由扫描线程写入。
+PHOTO_PREPARE_WORKERS = min(2, max(os.cpu_count() or 1, 1))
 
 # Windows 下隐藏 ffmpeg/ffprobe 子进程控制台窗口
 _SUBPROCESS_FLAGS = {}
@@ -337,6 +346,80 @@ def _stat_file(path: str) -> tuple[int, float] | None:
         return None
 
 
+def _photo_is_unchanged(photo, library_id: str, stat: tuple[int, float] | None) -> bool:
+    """判断图片是否可跳过缩略图与元数据预处理。"""
+    if photo is None or stat is None:
+        return False
+    size, mtime = stat
+    has_cover = bool(photo.cover_path) and os.path.isfile(photo.cover_path)
+    return (
+        photo.file_size == size
+        and abs((photo.file_mtime or 0) - mtime) < 1
+        and has_cover
+        and str(photo.library_id) == library_id
+    )
+
+
+def _sync_photo_targets(task_id: str, photo_targets: dict[str, str], done: int,
+                        record_stats: dict) -> int:
+    """并行预处理图片缩略图，再按单线程顺序写入数据库。"""
+    from .models import Photo
+
+    existing_by_path = {
+        photo.absolute_path: photo
+        for photo in Photo.objects.filter(absolute_path__in=photo_targets).only(
+            'id', 'absolute_path', 'file_size', 'file_mtime', 'cover_path', 'library_id',
+        )
+    }
+    pending = {}
+
+    def record_outcome(filepath: str, library_id: str, outcome: str,
+                       prepared: PreparedPhoto | None = None, media_id=None,
+                       existing=None) -> None:
+        nonlocal done
+        done += 1
+        _update(
+            task_id,
+            progress=done,
+            current_file=os.path.basename(filepath),
+            message=f'图片: {os.path.basename(filepath)}',
+        )
+        if prepared is not None:
+            outcome = _sync_photo(filepath, library_id, prepared, media_id, existing)
+        record_stats[outcome] = record_stats.get(outcome, 0) + 1
+        _update(task_id, **{key: record_stats[key] for key in ('added', 'updated', 'failed')})
+
+    with ThreadPoolExecutor(
+        max_workers=PHOTO_PREPARE_WORKERS,
+        thread_name_prefix='photo-prepare',
+    ) as executor:
+        for filepath, library_id in photo_targets.items():
+            if _is_cancelled(task_id):
+                break
+            existing = existing_by_path.get(filepath)
+            if _photo_is_unchanged(existing, library_id, _stat_file(filepath)):
+                record_outcome(filepath, library_id, 'skipped')
+                continue
+
+            media_id = existing.id if existing else uuid.uuid4()
+            future = executor.submit(prepare_photo_thumbnail, filepath, str(media_id))
+            pending[future] = (filepath, library_id, media_id, existing)
+
+        for future in as_completed(pending):
+            if _is_cancelled(task_id):
+                for queued in pending:
+                    queued.cancel()
+                break
+            filepath, library_id, media_id, existing = pending[future]
+            try:
+                prepared = future.result()
+            except Exception:  # noqa: BLE001 - 单个图片失败不影响整次扫描
+                prepared = None
+            record_outcome(filepath, library_id, 'failed', prepared, media_id, existing)
+
+    return done
+
+
 # ═══════════════════════════════════════════════════════
 # 主扫描流程
 # ═══════════════════════════════════════════════════════
@@ -422,16 +505,9 @@ def scan_libraries(task_id: str, library_ids: tuple[str, ...] | None = None) -> 
 
         # ── 图片 ──────────────────────────────────────
         if not _is_cancelled(task_id):
-            _update(task_id, stage='photo', stage_label='处理图片')
-        for filepath, lib_id in photo_targets.items():
-            if _is_cancelled(task_id):
-                break
-            done += 1
-            _update(task_id, progress=done, current_file=os.path.basename(filepath),
-                    message=f'图片: {os.path.basename(filepath)}')
-            outcome = _sync_photo(filepath, lib_id)
-            record_stats[outcome] = record_stats.get(outcome, 0) + 1
-            _update(task_id, **{k: record_stats[k] for k in ('added', 'updated', 'failed')})
+            _update(task_id, stage='photo', stage_label='处理图片',
+                    message='正在并行生成图片缩略图')
+            done = _sync_photo_targets(task_id, photo_targets, done, record_stats)
 
         cancelled = _is_cancelled(task_id)
 
@@ -612,24 +688,17 @@ def _sync_video(filepath: str, lib_id: str, make_thumb: bool = True) -> str:
     return 'added'
 
 
-def _sync_photo(filepath: str, lib_id: str) -> str:
-    """单个图片入库/更新，返回 'added' | 'updated' | 'skipped' | 'failed'."""
+def _sync_photo(filepath: str, lib_id: str, prepared: PreparedPhoto | None,
+                media_id: uuid.UUID, existing=None) -> str:
+    """顺序写入已预处理的图片结果，不重复读取原始文件。"""
     from .models import Photo
 
-    stat = _stat_file(filepath)
-    if stat is None:
+    if prepared is None:
         return 'failed'
-    size, mtime = stat
+    size, mtime = prepared.file_size, prepared.file_mtime
+    cover, meta = prepared.cover_path, prepared.metadata
 
-    existing = Photo.objects.filter(absolute_path=filepath).first()
     if existing:
-        unchanged = (existing.file_size == size
-                     and abs((existing.file_mtime or 0) - mtime) < 1)
-        has_cover = bool(existing.cover_path) and os.path.isfile(existing.cover_path)
-        if unchanged and has_cover and str(existing.library_id) == lib_id:
-            return 'skipped'
-
-        cover, meta = generate_image_thumbnail(filepath, str(existing.id))
         existing.file_size = size
         existing.file_mtime = mtime
         existing.library_id = lib_id
@@ -645,14 +714,12 @@ def _sync_photo(filepath: str, lib_id: str) -> str:
         return 'updated'
 
     filename = os.path.basename(filepath)
-    photo_id = uuid.uuid4()
-    cover, meta = generate_image_thumbnail(filepath, str(photo_id))
     if not cover and not meta.get('width'):
         # 既没缩略图也读不到尺寸 → Pillow 完全无法识别，计入失败不入库
         return 'failed'
 
     photo = Photo(
-        id=photo_id,
+        id=media_id,
         absolute_path=filepath,
         original_filename=filename,
         name=os.path.splitext(filename)[0],

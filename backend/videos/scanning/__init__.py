@@ -7,15 +7,22 @@ makes the scan pipeline easier to change without touching task handling.
 
 from .detect import PHOTO_EXTENSIONS, SKIP_DIR_NAMES, VIDEO_EXTENSIONS, detect_file
 from .extract import extract_video_metadata, ffmpeg_available
-from .thumbnail import generate_video_thumbnail, remove_thumbnail
+from .thumbnail import (
+    PreparedPhoto,
+    generate_video_thumbnail,
+    prepare_photo_thumbnail,
+    remove_thumbnail,
+)
 
 __all__ = [
     'PHOTO_EXTENSIONS',
+    'PreparedPhoto',
     'SKIP_DIR_NAMES',
     'VIDEO_EXTENSIONS',
     'detect_file',
     'extract_video_metadata',
     'ffmpeg_available',
     'generate_video_thumbnail',
+    'prepare_photo_thumbnail',
     'remove_thumbnail',
 ]
