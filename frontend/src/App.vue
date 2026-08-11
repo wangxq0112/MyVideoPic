@@ -14,17 +14,24 @@ import ImageViewer from './components/ImageViewer.vue'
 import MediaDialogs from './components/MediaDialogs.vue'
 import SearchOverlay from './components/SearchOverlay.vue'
 import Toasts from './components/Toasts.vue'
-import { errMsg, recordHistory } from './api/api.js'
+import {
+  errMsg, getScanProgress, pickAndScanLibrary, recordHistory, triggerScan,
+} from './api/api.js'
 import { useLibrariesStore } from './stores/libraries.js'
 import { useOpsStore } from './stores/ops.js'
+import { usePhotosStore } from './stores/photos.js'
 import { useSettingsStore } from './stores/settings.js'
 import { useUiStore } from './stores/ui.js'
+import { useVideosStore } from './stores/videos.js'
 
 const route = useRoute()
 const ui = useUiStore()
 const ops = useOpsStore()
 const libs = useLibrariesStore()
+const videos = useVideosStore()
+const photos = usePhotosStore()
 const settings = useSettingsStore()
+const selectingLibrary = ref(false)
 
 const NAV = [
   { to: '/videos', label: '视频', icon: 'video' },
@@ -55,6 +62,57 @@ function onKey(e) {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
     e.preventDefault()
     ui.openSearch()
+  }
+}
+
+async function addLibraryFromSystemPicker() {
+  if (selectingLibrary.value) return
+  selectingLibrary.value = true
+  try {
+    const res = await pickAndScanLibrary()
+    if (res.data?.cancelled) return
+
+    await libs.load(true)
+    videos.invalidate()
+    photos.invalidate()
+    if (route.path.startsWith('/videos')) await videos.load(true)
+    if (route.path.startsWith('/images')) await photos.load(true)
+
+    const names = (res.data?.libraries || []).map((lib) => lib.name).join('、')
+    const taskId = res.data?.scan?.task_id
+    if (taskId) refreshAfterScan(taskId, !!res.data?.scan?.already_running)
+    ui.ok(res.data?.scan?.already_running
+      ? `${names || '媒体库'} 已添加，等待当前扫描完成后会自动扫描`
+      : `${names || '媒体库'} 已添加，正在自动扫描`)
+  } catch (e) {
+    ui.fail(errMsg(e, '添加媒体库失败'))
+  } finally {
+    selectingLibrary.value = false
+  }
+}
+
+async function refreshAfterScan(taskId, startQueuedScan = false) {
+  for (let attempt = 0; attempt < 180; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    try {
+      const status = (await getScanProgress(taskId)).data
+      if (!['completed', 'failed', 'cancelled'].includes(status?.status)) continue
+      if (startQueuedScan) {
+        const queued = await triggerScan()
+        if (queued.data?.task_id) {
+          refreshAfterScan(queued.data.task_id)
+          return
+        }
+      }
+      await libs.load(true)
+      videos.invalidate()
+      photos.invalidate()
+      if (route.path.startsWith('/videos')) await videos.load(true)
+      if (route.path.startsWith('/images')) await photos.load(true)
+      return
+    } catch {
+      return
+    }
   }
 }
 
@@ -91,6 +149,17 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
         <div class="mv-topbar__spacer" />
 
         <div class="mv-topbar__tools">
+          <button
+            class="mv-icon-btn"
+            type="button"
+            :disabled="selectingLibrary"
+            title="添加媒体文件夹"
+            aria-label="添加媒体文件夹"
+            @click="addLibraryFromSystemPicker"
+          >
+            <Icon v-if="selectingLibrary" name="spinner" :size="18" class="mv-spin" />
+            <Icon v-else name="plus" :size="18" />
+          </button>
           <button
             class="mv-icon-btn"
             :class="{ 'is-active': ui.searchOpen }"
