@@ -5,21 +5,22 @@
  * 三个要点：
  *   1. 视频流走 /api/stream/video/<uuid>/ —— 支持 206 Range，拖进度才有效，
  *      同时 URL 里不出现磁盘路径。
- *   2. 编码不被浏览器支持时不硬播，直接给"复制路径 / 本地播放器"两条出路。
+ *   2. 编码不被浏览器支持时不硬播，直接给"复制路径 / 系统默认播放器"两条出路。
  *   3. 播放进度每 5 秒上报一次，离开页面时再补一次，下次进来可续播。
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import Icon from '../components/Icon.vue'
-import { errMsg, fetchVideo, recordHistory, saveProgress } from '../api/api.js'
+import {
+  errMsg, fetchVideo, openVideoWithDefaultPlayer, recordHistory, saveProgress,
+} from '../api/api.js'
 import { useOpsStore } from '../stores/ops.js'
 import { useSettingsStore } from '../stores/settings.js'
 import { useUiStore } from '../stores/ui.js'
 import { useVideosStore } from '../stores/videos.js'
 import {
-  copyText, fmtDate, fmtDuration, fmtSize,
-  localPlayerUrl, parentDir, videoStreamUrl,
+  copyText, fmtDate, fmtDuration, fmtSize, parentDir, videoStreamUrl,
 } from '../utils.js'
 
 const route = useRoute()
@@ -131,6 +132,16 @@ async function copyFolder() {
   done ? ui.ok('文件夹路径已复制') : ui.fail('复制失败')
 }
 
+async function openWithDefaultPlayer() {
+  if (!video.value) return
+  try {
+    await openVideoWithDefaultPlayer(video.value.id)
+    ui.ok('已交给系统默认播放器打开')
+  } catch (e) {
+    ui.fail(errMsg(e, '无法调用系统默认播放器'))
+  }
+}
+
 async function fav() {
   try {
     const on = await ops.toggleFav('video', video.value)
@@ -217,7 +228,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <!-- 编码不兼容：给出本地播放器与复制路径两条路 -->
+        <!-- 编码不兼容：交给 Windows 的默认文件关联处理 -->
         <div v-else-if="!playable" class="mv-fallback">
           <div>
             <div class="mv-empty__icon" style="margin-inline: auto">
@@ -227,15 +238,16 @@ onBeforeUnmount(() => {
             <p class="mv-empty__desc">
               {{ video.container_format || '该封装' }} /
               {{ video.video_codec || '未知编码' }} 需要本地播放器。<br />
-              复制路径后粘贴到播放器，或直接尝试唤起。
+              可直接用系统默认播放器打开，或复制路径手动处理。
             </p>
             <div class="mv-empty__actions">
-              <a
+              <button
                 class="mv-btn mv-btn--primary"
-                :href="localPlayerUrl(video.absolute_path, settings.playback.external_player)"
+                type="button"
+                @click="openWithDefaultPlayer"
               >
-                <Icon name="external" :size="15" /> 用本地播放器打开
-              </a>
+                <Icon name="external" :size="15" /> 用系统默认播放器打开
+              </button>
               <button class="mv-btn mv-btn--ghost" type="button" @click="copyPath">
                 <Icon name="copy" :size="15" /> 复制文件路径
               </button>
@@ -286,13 +298,6 @@ onBeforeUnmount(() => {
         <button class="mv-btn mv-btn--ghost" type="button" @click="copyFolder">
           <Icon name="folder" :size="15" /> 复制所在文件夹
         </button>
-        <a
-          v-if="playable"
-          class="mv-btn mv-btn--ghost"
-          :href="localPlayerUrl(video.absolute_path, settings.playback.external_player)"
-        >
-          <Icon name="external" :size="15" /> 本地播放器
-        </a>
       </div>
 
       <div class="mv-hr" />

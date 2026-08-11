@@ -139,9 +139,10 @@ URL 里只有 UUID，磁盘路径不会出现在地址栏或网络面板里。
 播放进度每 5 秒上报一次，离开页面再补一次，下次打开自动续播（看完的会归零，
 不会一进去就跳到片尾）。
 
-遇到浏览器原生不支持的编码（如 HEVC、RMVB），卡片上会有「需外部播放」角标，
-播放页不会硬播，而是给出两条出路：唤起本地播放器（PotPlayer / VLC / MPC-HC，
-在设置里选），或复制路径手动打开。
+遇到浏览器原生不支持的编码（如 HEVC、RMVB），卡片上会有「需外部播放」角标。
+播放页不会硬播；点击「用系统默认播放器打开」后，后端会通过 Windows 文件关联打开
+该视频类型的默认应用。把 MPC-BE 设为对应视频类型的默认应用即可直接由 MPC-BE 播放；
+也可复制路径后手动打开。
 
 ### 图片
 
@@ -255,16 +256,25 @@ Django 只监听 `127.0.0.1`，`ALLOWED_HOSTS` 不含局域网地址。
 进程不会被占满。
 
 `nginx/media.conf` 用的是 `X-Accel-Redirect` 方案：请求先经过 Django 校验 UUID，
-命中后返回一个 `internal` 位置的内部重定向，Nginx 再取文件回传。
-**磁盘目录不会被直接 alias 出去**，浏览器无法构造 URL 访问任意文件。
+命中后返回一个 `internal` 位置的内部重定向，Nginx 再取文件回传。配置会自动映射本机
+所有盘符，但磁盘目录不会被直接暴露：`internal` 会拒绝来自浏览器的直接请求，只有 Django
+为已入库 UUID 生成的内部重定向才能读取文件。
 
-启用步骤：
+Windows 上的最短启用步骤：
 
-1. 编辑 `nginx/media.conf`，按实际盘符增删 `/_protected/<盘符>/` 区块，
-   并把 `/static/` 与前端 `root` 改成你的实际路径
-2. 在 `nginx.conf` 的 `http` 块里 `include` 这个文件
-3. 给 Django 设 `MYVIDEOPIC_X_ACCEL=1` 后重启
-4. `nginx -t` 检查，然后启动 `nginx`
+1. 执行 `npm run build`，得到 `frontend/dist`。如需访问 Django Admin，再执行
+   `python manage.py collectstatic`。
+2. 打开 `nginx/media.conf`，只把 `myvideopic_root` 的值改成项目的绝对路径，使用正斜杠，
+   例如 `C:/Apps/MyVideoPic`。
+3. 在 Nginx 安装目录的 `conf/nginx.conf` 的 `http {}` 内加入：
+   `include C:/Apps/MyVideoPic/nginx/media.conf;`
+4. 以 `MYVIDEOPIC_X_ACCEL=1` 启动 Django，再执行 `nginx -t` 检查配置并启动 Nginx。
+5. 打开 `http://127.0.0.1/`。示例配置只监听 `127.0.0.1:80`，不会对局域网开放。
+
+如 80 端口已被占用，只需同时把配置中的 `listen 127.0.0.1:80` 和访问地址改成空闲端口。
+
+Nginx 版本只适用于盘符形式的本地路径（如 `D:\\Movies`）。媒体库在 UNC 网络共享路径时，
+保留 `MYVIDEOPIC_X_ACCEL=0`，由 Django 的 Range 流直接提供视频即可。
 
 ---
 
@@ -294,6 +304,7 @@ Django 只监听 `127.0.0.1`，`ALLOWED_HOSTS` 不含局域网地址。
 | POST | `/videos/<id>/move/` `/photos/<id>/move/` | 移动，跨盘返回 `202` + `task_id` |
 | DELETE | `/videos/<id>/delete/` `/photos/<id>/delete/` | 永久删除 |
 | POST | `/videos/<id>/progress/` | 上报播放进度 |
+| POST | `/videos/<id>/open/` | 交给 Windows 默认播放器打开文件 |
 | GET | `/thumbnails/video/<id>/` `/thumbnails/photo/<id>/` | 封面 |
 | GET | `/stream/video/<id>/` | 视频流（206 Range）|
 | GET | `/original/photo/<id>/` | 原图 |
@@ -322,7 +333,8 @@ Django 只监听 `127.0.0.1`，`ALLOWED_HOSTS` 不含局域网地址。
 
 **视频能列出但点开播不了**
 看卡片上有没有「需外部播放」角标。有的话是编码问题（HEVC、RMVB、AVI 里的
-老编码等浏览器不支持），用播放页的「本地播放器」或复制路径打开。
+老编码等浏览器不支持），用播放页的「用系统默认播放器打开」或复制路径打开。
+若希望由 MPC-BE 打开，请先在 Windows 的默认应用中将对应视频类型关联到 MPC-BE。
 没有角标却播不了，检查文件是否还在原处。
 
 **拖进度条没反应 / 整个页面卡住**

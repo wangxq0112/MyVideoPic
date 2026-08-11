@@ -82,18 +82,6 @@ export function fmtCount(n) {
   return (n ?? 0).toLocaleString('zh-CN')
 }
 
-// ── 本地播放器 ──────────────────────────────────────
-export const PLAYER_SCHEMES = {
-  potplayer: (p) => `potplayer://${p}`,
-  vlc: (p) => `vlc://${p}`,
-  mpc: (p) => `mpc-hc://${p}`,
-}
-
-export function localPlayerUrl(absPath, player = 'potplayer') {
-  const build = PLAYER_SCHEMES[player] || PLAYER_SCHEMES.potplayer
-  return build(absPath)
-}
-
 /** 取父目录，用于"打开所在文件夹"提示 */
 export function parentDir(absPath) {
   if (!absPath) return ''

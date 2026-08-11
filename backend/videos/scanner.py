@@ -86,7 +86,7 @@ def parse_year(filename: str) -> int | None:
 
 
 def is_browser_compatible(container: str, video_codec: str, audio_codec: str) -> bool:
-    """判断是否可直接用 <video> 播放；否则前端提供复制路径/唤起本地播放器."""
+    """判断是否可直接用 <video> 播放；否则前端提供复制路径/系统默认播放器."""
     c = container.lower().lstrip('.')
     v = video_codec.lower().replace(' ', '')
     a = audio_codec.lower().replace(' ', '')

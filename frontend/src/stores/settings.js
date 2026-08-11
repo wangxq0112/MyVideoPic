@@ -15,7 +15,6 @@ const DEFAULTS = {
     default_volume: 80,
     seek_step: 10,
     remember_position: true,
-    external_player: 'potplayer',
   },
   appearance: {
     grid_density: 'comfortable',

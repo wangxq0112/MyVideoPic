@@ -372,6 +372,24 @@ def stream_video(request, video_id):
     return serve_media_file(request, video.absolute_path, video.original_filename)
 
 
+@api_view(['POST'])
+def open_video_with_default_player(request, video_id):
+    """通过 Windows 文件关联交给该视频类型的系统默认播放器打开."""
+    video = Video.objects.filter(id=video_id).only('absolute_path').first()
+    if video is None:
+        raise Http404('视频不存在')
+    if not os.path.isfile(video.absolute_path):
+        raise Http404('文件不存在或磁盘未连接')
+    if os.name != 'nt' or not hasattr(os, 'startfile'):
+        return _bad('此功能仅支持 Windows 本机环境', 501)
+
+    try:
+        os.startfile(video.absolute_path)
+    except OSError:
+        return _bad('无法调用系统默认播放器，请确认已为此类视频设置默认应用', 409)
+    return Response({'success': True})
+
+
 @api_view(['GET', 'HEAD'])
 def serve_photo_original(request, photo_id):
     """图片原图 — 大图查看器用."""
@@ -729,7 +747,6 @@ DEFAULT_SETTINGS = {
         'default_volume': 80,
         'seek_step': 10,
         'remember_position': True,
-        'external_player': 'potplayer',
     },
     'appearance': {
         'grid_density': 'comfortable',   # compact | comfortable | spacious
@@ -749,7 +766,11 @@ def app_settings(request):
         stored = {s.key: s.value for s in AppSetting.objects.all()}
         merged = {}
         for group, defaults in DEFAULT_SETTINGS.items():
-            merged[group] = {**defaults, **(stored.get(group) or {})}
+            values = stored.get(group) or {}
+            merged[group] = {
+                **defaults,
+                **{k: v for k, v in values.items() if k in defaults},
+            }
         return Response(merged)
 
     payload = request.data or {}
@@ -763,7 +784,11 @@ def app_settings(request):
         if not isinstance(values, dict):
             continue
         current = AppSetting.objects.filter(key=group).first()
-        base = {**DEFAULT_SETTINGS[group], **((current.value if current else None) or {})}
+        stored_values = (current.value if current else None) or {}
+        base = {
+            **DEFAULT_SETTINGS[group],
+            **{k: v for k, v in stored_values.items() if k in DEFAULT_SETTINGS[group]},
+        }
         # 只接受默认结构里已有的键，避免写入任意数据
         base.update({k: v for k, v in values.items() if k in DEFAULT_SETTINGS[group]})
         AppSetting.objects.update_or_create(key=group, defaults={'value': base})

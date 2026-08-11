@@ -11,6 +11,8 @@ urlpatterns = [
     path('videos/<uuid:video_id>/move/', views.video_move, name='video-move'),
     path('videos/<uuid:video_id>/delete/', views.video_delete, name='video-delete'),
     path('videos/<uuid:video_id>/progress/', views.update_progress, name='video-progress'),
+    path('videos/<uuid:video_id>/open/', views.open_video_with_default_player,
+         name='video-open-default-player'),
 
     # ── 图片 ──────────────────────────────────────────
     path('photos/', views.PhotoListView.as_view(), name='photo-list'),

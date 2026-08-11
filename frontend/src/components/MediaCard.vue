@@ -70,7 +70,7 @@ const MENU = [
         v-if="isVideo && item.browser_compatible === false"
         class="mv-badge mv-badge--warn"
         :style="{ top: item.resolution_label ? '30px' : '6px' }"
-        title="浏览器无法直接播放此编码，可用本地播放器打开"
+        title="浏览器无法直接播放此编码，可用系统默认播放器打开"
       >
         需外部播放
       </span>

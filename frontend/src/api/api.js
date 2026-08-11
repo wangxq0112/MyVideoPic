@@ -45,6 +45,7 @@ export const moveVideo = (id, libraryId) =>
 export const deleteVideo = (id) => api.delete(`/videos/${id}/delete/`)
 export const saveProgress = (id, position) =>
   api.post(`/videos/${id}/progress/`, { position })
+export const openVideoWithDefaultPlayer = (id) => api.post(`/videos/${id}/open/`)
 
 // ── 图片 ────────────────────────────────────────────
 export const fetchPhotos = (params) => api.get('/photos/', { params })
