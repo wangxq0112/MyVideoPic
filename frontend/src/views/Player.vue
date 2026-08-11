@@ -20,7 +20,8 @@ import { useSettingsStore } from '../stores/settings.js'
 import { useUiStore } from '../stores/ui.js'
 import { useVideosStore } from '../stores/videos.js'
 import {
-  copyText, fmtDate, fmtDuration, fmtSize, parentDir, videoStreamUrl,
+  browserPlayableVideoMime, copyText, fmtDate, fmtDuration, fmtSize,
+  parentDir, videoStreamUrl,
 } from '../utils.js'
 
 const route = useRoute()
@@ -35,13 +36,15 @@ const video = ref(null)
 const loading = ref(true)
 const error = ref('')
 const resumed = ref(0)
+const playbackFailed = ref(false)
 
 let timer = null
 let lastSent = 0
 
 const id = computed(() => route.params.id)
 const src = computed(() => (video.value ? videoStreamUrl(video.value.id) : ''))
-const playable = computed(() => video.value?.browser_compatible !== false)
+const playableMime = computed(() => browserPlayableVideoMime(video.value))
+const playable = computed(() => !!playableMime.value && !playbackFailed.value)
 const missing = computed(() => video.value?.file_exists === false)
 
 const meta = computed(() => {
@@ -63,6 +66,7 @@ async function load() {
   if (cached) video.value = cached
   loading.value = !cached
   error.value = ''
+  playbackFailed.value = false
   try {
     const res = await fetchVideo(id.value)
     video.value = res.data
@@ -130,6 +134,11 @@ async function copyPath() {
 async function copyFolder() {
   const done = await copyText(parentDir(video.value?.absolute_path))
   done ? ui.ok('文件夹路径已复制') : ui.fail('复制失败')
+}
+
+/** canPlayType 通过后仍可能因具体文件损坏、编码级别等原因失败。 */
+function onPlaybackError() {
+  playbackFailed.value = true
 }
 
 async function openWithDefaultPlayer() {
@@ -228,16 +237,16 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <!-- 编码不兼容：交给 Windows 的默认文件关联处理 -->
+        <!-- 当前浏览器无法播放：交给 Windows 的默认文件关联处理 -->
         <div v-else-if="!playable" class="mv-fallback">
           <div>
             <div class="mv-empty__icon" style="margin-inline: auto">
               <Icon name="film" :size="24" />
             </div>
-            <div class="mv-empty__title">浏览器无法直接播放此编码</div>
+            <div class="mv-empty__title">当前浏览器无法直接播放此视频</div>
             <p class="mv-empty__desc">
               {{ video.container_format || '该封装' }} /
-              {{ video.video_codec || '未知编码' }} 需要本地播放器。<br />
+              {{ video.video_codec || '未知编码' }} 在当前浏览器中不可用。<br />
               可直接用系统默认播放器打开，或复制路径手动处理。
             </p>
             <div class="mv-empty__actions">
@@ -258,7 +267,6 @@ onBeforeUnmount(() => {
         <video
           v-else
           ref="el"
-          :src="src"
           controls
           preload="metadata"
           playsinline
@@ -266,7 +274,10 @@ onBeforeUnmount(() => {
           @timeupdate="report()"
           @pause="report(true)"
           @ended="report(true)"
-        />
+          @error="onPlaybackError"
+        >
+          <source :src="src" :type="playableMime" @error="onPlaybackError" />
+        </video>
       </div>
 
       <h1 class="mv-player__title">{{ video.name }}</h1>
@@ -276,7 +287,7 @@ onBeforeUnmount(() => {
           <span v-if="i">·</span>
           <span>{{ m }}</span>
         </template>
-        <span v-if="video.browser_compatible === false" class="mv-tag mv-tag--warn">需外部播放</span>
+        <span v-if="!playable" class="mv-tag mv-tag--warn">需外部播放</span>
       </div>
 
       <div v-if="resumed" class="mv-alert mv-alert--info" style="margin-top: 14px">
@@ -297,6 +308,14 @@ onBeforeUnmount(() => {
         </button>
         <button class="mv-btn mv-btn--ghost" type="button" @click="copyFolder">
           <Icon name="folder" :size="15" /> 复制所在文件夹
+        </button>
+        <button
+          v-if="playable && !missing"
+          class="mv-btn mv-btn--ghost"
+          type="button"
+          @click="openWithDefaultPlayer"
+        >
+          <Icon name="external" :size="15" /> 用系统默认播放器打开
         </button>
       </div>
 

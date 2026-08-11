@@ -36,10 +36,16 @@ _SUBPROCESS_FLAGS = {}
 if os.name == 'nt':
     _SUBPROCESS_FLAGS['creationflags'] = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
-# ── 浏览器原生可播放的组合 ─────────────────────────────
-BROWSER_CONTAINERS = {'mp4', 'm4v', 'webm', 'ogg', 'ogv', 'mov'}
-BROWSER_VIDEO_CODECS = {'h264', 'avc1', 'vp8', 'vp9', 'av1', 'theora'}
-BROWSER_AUDIO_CODECS = {'aac', 'mp3', 'mp4a', 'opus', 'vorbis', 'flac', 'pcm_s16le'}
+# ── 浏览器可尝试播放的组合 ─────────────────────────────
+# 最终能力由前端对当前 Edge/Chrome 的 canPlayType() 判断。后端无法得知
+# Windows HEVC 扩展、硬解能力和浏览器版本，因此这里只作为卡片初筛提示。
+BROWSER_CONTAINERS = {'mp4', 'm4v', 'webm', 'ogg', 'ogv', 'mov', 'mkv'}
+BROWSER_VIDEO_CODECS = {
+    'h264', 'avc1', 'hevc', 'h265', 'hvc1', 'hev1', 'vp8', 'vp9', 'av1', 'theora',
+}
+BROWSER_AUDIO_CODECS = {
+    'aac', 'mp3', 'mp4a', 'opus', 'vorbis', 'flac', 'pcm_s16le', 'ac3', 'eac3',
+}
 
 VIDEO_EXTENSIONS = {'.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm',
                     '.m4v', '.mpg', '.mpeg', '.ts', '.mts', '.m2ts', '.ogv',
@@ -86,7 +92,7 @@ def parse_year(filename: str) -> int | None:
 
 
 def is_browser_compatible(container: str, video_codec: str, audio_codec: str) -> bool:
-    """判断是否可直接用 <video> 播放；否则前端提供复制路径/系统默认播放器."""
+    """判断是否值得交给浏览器尝试；实际能力由前端按当前浏览器复核."""
     c = container.lower().lstrip('.')
     v = video_codec.lower().replace(' ', '')
     a = audio_codec.lower().replace(' ', '')
@@ -523,8 +529,15 @@ def _sync_video(filepath: str, lib_id: str, make_thumb: bool = True) -> str:
         unchanged = (existing.file_size == size
                      and abs((existing.file_mtime or 0) - mtime) < 1)
         has_cover = bool(existing.cover_path) and os.path.isfile(existing.cover_path)
+        expected_compatibility = is_browser_compatible(
+            existing.container_format, existing.video_codec, existing.audio_codec)
         if unchanged and (has_cover or not make_thumb) and str(existing.library_id) == lib_id:
-            return 'skipped'
+            if existing.browser_compatible == expected_compatibility:
+                return 'skipped'
+            # 兼容规则升级后，未改动的已入库视频也要刷新卡片提示。
+            existing.browser_compatible = expected_compatibility
+            existing.save(update_fields=['browser_compatible'])
+            return 'updated'
 
         probe = _run_ffprobe(filepath)
         if probe is None and not unchanged:

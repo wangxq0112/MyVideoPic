@@ -82,6 +82,68 @@ export function fmtCount(n) {
   return (n ?? 0).toLocaleString('zh-CN')
 }
 
+// ── 浏览器视频能力 ──────────────────────────────────
+// 容器与编码是否可用取决于当前浏览器、Windows 媒体扩展和硬件能力，
+// 因此前端必须用 canPlayType() 实测，后端扫描结果只能作为初筛提示。
+const VIDEO_MIME_TYPES = {
+  mp4: 'video/mp4',
+  m4v: 'video/mp4',
+  mov: 'video/quicktime',
+  webm: 'video/webm',
+  ogg: 'video/ogg',
+  ogv: 'video/ogg',
+  mkv: 'video/x-matroska',
+}
+
+const VIDEO_CODEC_MIME = {
+  h264: 'avc1',
+  avc1: 'avc1',
+  hevc: 'hvc1',
+  h265: 'hvc1',
+  hvc1: 'hvc1',
+  hev1: 'hev1',
+  vp8: 'vp8',
+  vp9: 'vp09',
+  av1: 'av01',
+  theora: 'theora',
+}
+
+const AUDIO_CODEC_MIME = {
+  aac: 'mp4a.40.2',
+  mp4a: 'mp4a.40.2',
+  mp3: 'mp3',
+  opus: 'opus',
+  vorbis: 'vorbis',
+  flac: 'flac',
+  pcms16le: 'pcm',
+  ac3: 'ac-3',
+  eac3: 'ec-3',
+}
+
+const normalizeCodec = (value) => String(value || '').toLowerCase().replace(/[\s._-]/g, '')
+
+/**
+ * 返回当前浏览器确认可用的 MIME 类型；空字符串表示不要尝试内嵌播放。
+ * 有编码信息却没有对应 MIME 映射时，宁可回退给系统播放器，避免无声或黑屏播放。
+ */
+export function browserPlayableVideoMime(media) {
+  if (typeof document === 'undefined' || !media) return ''
+  const container = String(media.container_format || '').toLowerCase().replace(/^\./, '')
+  const mime = VIDEO_MIME_TYPES[container]
+  if (!mime) return ''
+
+  const videoCodec = normalizeCodec(media.video_codec)
+  const audioCodec = normalizeCodec(media.audio_codec)
+  const videoToken = VIDEO_CODEC_MIME[videoCodec]
+  const audioToken = AUDIO_CODEC_MIME[audioCodec]
+  if ((videoCodec && !videoToken) || (audioCodec && !audioToken)) return ''
+
+  const codecs = [videoToken, audioToken].filter(Boolean)
+  const candidate = codecs.length ? `${mime}; codecs="${codecs.join(', ')}"` : mime
+  const probe = document.createElement('video')
+  return probe.canPlayType(candidate) ? candidate : ''
+}
+
 /** 取父目录，用于"打开所在文件夹"提示 */
 export function parentDir(absPath) {
   if (!absPath) return ''

@@ -10,7 +10,9 @@ import { computed } from 'vue'
 import Icon from './Icon.vue'
 import LazyCover from './LazyCover.vue'
 import MoreMenu from './MoreMenu.vue'
-import { fmtDuration, fmtSize, photoCoverUrl, videoCoverUrl } from '../utils.js'
+import {
+  browserPlayableVideoMime, fmtDuration, fmtSize, photoCoverUrl, videoCoverUrl,
+} from '../utils.js'
 
 const props = defineProps({
   item: { type: Object, required: true },
@@ -20,6 +22,9 @@ const props = defineProps({
 const emit = defineEmits(['open', 'fav', 'action'])
 
 const isVideo = computed(() => props.kind === 'video')
+const browserPlayable = computed(() =>
+  !isVideo.value || !!browserPlayableVideoMime(props.item),
+)
 
 const coverUrl = computed(() =>
   props.item.has_cover
@@ -67,7 +72,7 @@ const MENU = [
         {{ item.resolution_label }}
       </span>
       <span
-        v-if="isVideo && item.browser_compatible === false"
+        v-if="isVideo && !browserPlayable"
         class="mv-badge mv-badge--warn"
         :style="{ top: item.resolution_label ? '30px' : '6px' }"
         title="浏览器无法直接播放此编码，可用系统默认播放器打开"
