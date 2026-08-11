@@ -2,6 +2,16 @@
 
 后续使用 AI 维护项目时，修改代码前请先阅读 [AI_HANDOFF.md](AI_HANDOFF.md)。
 
+## v0.3.0 发布基线
+
+当前发布版本为 `v0.3.0`。它是面向 Windows 本地单用户场景的稳定维护基线：
+
+- 视频、图片、扫描、真实文件操作、收藏、历史与本地播放器均保持离线运行；
+- 媒体列表固定每页 24 项，工具条与底部均可翻页；
+- 扫描增量执行；首次大量导入图片时最多使用两个工作线程处理图片元数据与缩略图；
+- 顶栏与浏览器标签复用内置蓝色胶片播放图标，浏览器标题为 `MyVideoPic`；
+- 发布验证已通过 Django 系统检查、迁移一致性检查、扫描测试、Python 依赖检查与前端生产构建。
+
 ## 开发结构
 
 项目保持一个 Django 应用和一个 Vue 应用。以下文件是后续维护的主要入口，不会改变本文所述的本地、离线运行约束。
@@ -229,13 +239,15 @@ MyVideoPic/
 │   ├── db.sqlite3           # 首次 migrate 后生成
 │   └── .app_data/           # 缩略图缓存，同上
 ├── frontend/
+│   ├── public/favicon.svg   # 本地浏览器与顶栏应用图标
 │   └── src/
-│       ├── api/api.js       # 全部请求集中在此
+│       ├── api/             # client、media、libraries、tasks、settings；api.js 为兼容入口
 │       ├── components/      # 卡片、网格、菜单、对话框、抽屉、查看器…
 │       ├── composables/     # IntersectionObserver 封装
 │       ├── stores/          # Pinia：媒体 / 库 / 设置 / 扫描 / 操作 / UI
 │       ├── views/           # 视频 / 图片 / 收藏夹 / 播放 / 设置
 │       ├── style.css        # 手写设计系统（mv- 前缀）
+│       ├── styles/          # 语义设计变量
 │       └── utils.js         # URL 构造与格式化
 └── nginx/media.conf         # 可选
 ```

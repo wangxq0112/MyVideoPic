@@ -59,7 +59,7 @@ Core workflows:
 
 ## Current Behavior To Preserve
 
-- Video and image lists use server-side pagination with 24 items per page. The user changes pages using the bottom pagination control; do not restore infinite scrolling.
+- Video and image lists use server-side pagination with 24 items per page. Users can change pages from the toolbar arrows or the bottom page navigator; do not restore infinite scrolling.
 - Video and image toolbars keep the library and ordering controls to the left of fixed previous/next page buttons. The buttons use the same 24-item server-side pagination state as the bottom page navigator and remain visible when only one page exists (disabled at the boundary).
 - The video player playlist is scoped to the current video library and uses the same active `videos.filters.ordering` sort value as the main video library.
 - The playlist shows a thumbnail, title, duration, and file size. Its next-video action follows that list and displays a localized end-of-playlist notice at the end.
@@ -96,7 +96,7 @@ Core workflows:
 ## Validation Checklist
 
 1. Run `git diff --check`.
-2. Run `npm run build` from `frontend`.
-3. Run Python syntax checks only when backend files change. The available local Python runtime may not be on `PATH`.
+2. Run `python manage.py check`, `python manage.py makemigrations --check --dry-run`, and `python manage.py test videos.tests` in an environment with `backend/requirements.txt` installed.
+3. Run `python -m pip check` in that same environment and `npm run build` from `frontend`.
 4. Inspect the task-scoped diff and `git status --short`.
 5. Commit and push `main`; create and push any requested release tag.
