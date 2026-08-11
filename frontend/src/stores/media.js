@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 
-const PAGE_SIZE = 24
+export const MEDIA_PAGE_SIZE = 24
 
 export function createMediaState(apiSet) {
   const { fetchList, renameItem, moveItem, deleteItem } = apiSet
@@ -21,7 +21,7 @@ export function createMediaState(apiSet) {
   })
 
   const count = computed(() => list.value.length)
-  const totalPages = computed(() => Math.max(Math.ceil(total.value / PAGE_SIZE), 1))
+  const totalPages = computed(() => Math.max(Math.ceil(total.value / MEDIA_PAGE_SIZE), 1))
   const isFiltered = computed(() =>
     !!filters.value.library ||
     filters.value.category !== 'all' ||
@@ -31,7 +31,7 @@ export function createMediaState(apiSet) {
 
   function buildParams(page = currentPage.value) {
     const f = filters.value
-    const params = { page, page_size: PAGE_SIZE, ordering: f.ordering }
+    const params = { page, page_size: MEDIA_PAGE_SIZE, ordering: f.ordering }
     if (f.library) params.library = f.library
     if (f.category && f.category !== 'all') params.category = f.category
     if (f.favorited) params.favorited = 1
@@ -84,6 +84,16 @@ export function createMediaState(apiSet) {
     currentPage.value = 1
   }
 
+  /**
+   * 切换路由前准备指定筛选和页码；目标页面挂载后会发起一次列表请求。
+   * 适用于播放页等需要精确返回某个媒体分页位置的场景。
+   */
+  function preparePage(patch, page = 1) {
+    filters.value = { ...filters.value, ...patch }
+    currentPage.value = Math.max(Number(page) || 1, 1)
+    loaded.value = false
+  }
+
   async function rename(id, newName) {
     const res = await renameItem(id, newName)
     const patch = res.data.video || res.data.photo
@@ -130,7 +140,7 @@ export function createMediaState(apiSet) {
   return {
     list, loading, loaded, error, total, currentPage, totalPages, filters,
     count, isFiltered,
-    load, goToPage, applyFilters, resetFilters,
+    load, goToPage, applyFilters, resetFilters, preparePage,
     rename, move, remove,
     patchItem, dropItem, setFavorited, invalidate,
   }

@@ -19,6 +19,7 @@ import { useOpsStore } from '../stores/ops.js'
 import { useSettingsStore } from '../stores/settings.js'
 import { useUiStore } from '../stores/ui.js'
 import { useVideosStore } from '../stores/videos.js'
+import { MEDIA_PAGE_SIZE } from '../stores/media.js'
 import {
   browserPlayableVideoMime, copyText, fmtDate, fmtDuration, fmtSize,
   parentDir, videoCoverUrl, videoStreamUrl,
@@ -38,6 +39,7 @@ const error = ref('')
 const resumed = ref(0)
 const playbackFailed = ref(false)
 const playlist = ref([])
+const playlistTotal = ref(0)
 const playlistLoading = ref(false)
 const pendingNextId = ref('')
 
@@ -50,6 +52,9 @@ const playableMime = computed(() => browserPlayableVideoMime(video.value))
 const playable = computed(() => !!playableMime.value && !playbackFailed.value)
 const missing = computed(() => video.value?.file_exists === false)
 const playlistIndex = computed(() => playlist.value.findIndex((item) => item.id === video.value?.id))
+const playlistPosition = computed(() => (
+  playlistIndex.value >= 0 ? playlistIndex.value + 1 : 0
+))
 
 const meta = computed(() => {
   const v = video.value
@@ -161,9 +166,12 @@ async function openWithDefaultPlayer() {
 async function loadPlaylist(currentVideo) {
   if (!currentVideo?.library_id) {
     playlist.value = []
+    playlistTotal.value = 0
     return
   }
 
+  playlist.value = []
+  playlistTotal.value = 0
   playlistLoading.value = true
   try {
     const res = await fetchVideos({
@@ -173,8 +181,12 @@ async function loadPlaylist(currentVideo) {
     })
     if (video.value?.id !== currentVideo.id) return
     playlist.value = Array.isArray(res.data) ? res.data : (res.data?.results || [])
+    playlistTotal.value = res.data?.count ?? playlist.value.length
   } catch {
-    if (video.value?.id === currentVideo.id) playlist.value = []
+    if (video.value?.id === currentVideo.id) {
+      playlist.value = []
+      playlistTotal.value = 0
+    }
   } finally {
     if (video.value?.id === currentVideo.id) playlistLoading.value = false
   }
@@ -201,7 +213,8 @@ function playVideo(item) {
 }
 
 function nextVideo() {
-  const next = playlist.value[playlistIndex.value + 1]
+  const currentIndex = playlistIndex.value
+  const next = currentIndex >= 0 ? playlist.value[currentIndex + 1] : null
   if (!next) {
     ui.fail('已经是最后一个视频')
     return
@@ -210,9 +223,29 @@ function nextVideo() {
 }
 
 function removeCurrent() {
-  const next = playlist.value[playlistIndex.value + 1]
+  const currentIndex = playlistIndex.value
+  const next = currentIndex >= 0 ? playlist.value[currentIndex + 1] : null
   pendingNextId.value = next?.id || ''
   ops.start('delete', 'video', video.value)
+}
+
+function returnToVideoList() {
+  const currentVideo = video.value
+  if (!currentVideo?.library_id) {
+    router.push('/videos')
+    return
+  }
+
+  const page = playlistPosition.value
+    ? Math.ceil(playlistPosition.value / MEDIA_PAGE_SIZE)
+    : 1
+  videos.preparePage({
+    library: currentVideo.library_id,
+    category: 'all',
+    favorited: false,
+    q: '',
+  }, page)
+  router.push('/videos')
 }
 
 /** 本视频被删掉了就退出播放页，否则（重命名/移动后）重新取一次信息 */
@@ -246,7 +279,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="mv-player">
     <div class="mv-row-flex" style="margin-bottom: 14px">
-      <button class="mv-btn mv-btn--ghost mv-btn--sm" type="button" @click="router.back()">
+      <button class="mv-btn mv-btn--ghost mv-btn--sm" type="button" @click="returnToVideoList">
         <Icon name="chevronLeft" :size="14" /> 返回
       </button>
       <router-link to="/videos" class="mv-btn mv-btn--ghost mv-btn--sm">视频列表</router-link>
@@ -391,7 +424,9 @@ onBeforeUnmount(() => {
         <aside class="mv-player__playlist" aria-label="播放列表">
           <div class="mv-player__playlist-head">
             <span>播放列表</span>
-            <span class="mv-dim">{{ playlist.length }}</span>
+            <span v-if="playlistTotal" class="mv-player__playlist-position">
+              {{ playlistPosition || '—' }}/{{ playlistTotal }}
+            </span>
           </div>
           <div v-if="playlistLoading" class="mv-player__playlist-empty">
             <Icon name="spinner" :size="18" class="mv-spin" />

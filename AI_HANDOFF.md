@@ -61,6 +61,7 @@ Core workflows:
 - Video and image lists use server-side pagination with 24 items per page. The user changes pages using the bottom pagination control; do not restore infinite scrolling.
 - The video player playlist is scoped to the current video library and uses the same active `videos.filters.ordering` sort value as the main video library.
 - The playlist shows a thumbnail, title, duration, and file size. Its next-video action follows that list and displays a localized end-of-playlist notice at the end.
+- The playlist header shows the active position and total as `2/18`. The player return button prepares the current library, active ordering, and the corresponding 24-item video page before routing to `/videos`; do not replace it with browser-history navigation.
 - Deleting in the player chooses the next playlist item before opening the existing delete confirmation. On confirmed success, the video store refreshes and navigation goes to that next video; it returns to `/videos` only when there is no next item.
 - The top-bar plus icon invokes `POST /libraries/pick-and-scan/`. It refreshes the visible video/photo page both initially and when scanning completes.
 - Settings still contains the library-management entry point. Do not remove it when modifying the top-bar import flow.
