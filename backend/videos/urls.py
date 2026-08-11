@@ -30,6 +30,8 @@ urlpatterns = [
     path('libraries/',
          views.MediaLibraryViewSet.as_view({'get': 'list', 'post': 'create'}),
          name='library-list'),
+    path('libraries/pick-and-scan/', views.pick_and_scan_library,
+         name='library-pick-and-scan'),
     path('libraries/<uuid:pk>/',
          views.MediaLibraryViewSet.as_view({
              'get': 'retrieve', 'put': 'update',

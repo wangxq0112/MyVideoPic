@@ -7,12 +7,11 @@
  */
 import { computed, onMounted, reactive, ref } from 'vue'
 
-import FolderPicker from '../components/FolderPicker.vue'
 import Icon from '../components/Icon.vue'
 import Modal from '../components/Modal.vue'
 import ScanPanel from '../components/ScanPanel.vue'
 import {
-  cleanupOrphans, clearThumbnailCache, errMsg, fetchStats,
+  cleanupOrphans, clearThumbnailCache, errMsg, fetchStats, pickAndScanLibrary,
 } from '../api/api.js'
 import { useLibrariesStore } from '../stores/libraries.js'
 import { usePhotosStore } from '../stores/photos.js'
@@ -45,7 +44,7 @@ const DENSITIES = [
 const section = ref('libraries')
 const stats = ref(null)
 const busy = ref('')
-const pickerOpen = ref(false)
+const selectingLibrary = ref(false)
 
 // 新增/编辑媒体库
 const form = reactive({
@@ -69,12 +68,25 @@ function openForm(lib = null) {
   })
 }
 
-/** 选完文件夹自动填个名字，省得用户再想 */
-function onPick(path) {
-  form.folder_path = path
-  pickerOpen.value = false
-  if (!form.name) {
-    form.name = path.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || path
+async function addLibraryFromSystemPicker() {
+  if (selectingLibrary.value) return
+  selectingLibrary.value = true
+  try {
+    const res = await pickAndScanLibrary()
+    if (res.data?.cancelled) return
+    await libs.load(true)
+    invalidateLists()
+    const names = (res.data?.libraries || []).map((lib) => lib.name).join('、')
+    section.value = 'scan'
+    if (res.data?.scan?.already_running) {
+      ui.ok(`${names} 已添加；当前扫描任务结束后可再次扫描`)
+    } else {
+      ui.ok(`${names} 已添加，正在自动扫描`)
+    }
+  } catch (e) {
+    ui.fail(errMsg(e, '添加媒体库失败'))
+  } finally {
+    selectingLibrary.value = false
   }
 }
 
@@ -208,8 +220,14 @@ onMounted(() => {
                 挂载本地文件夹。原文件只读，不会在其中生成任何隐藏文件。
               </div>
             </div>
-            <button class="mv-btn mv-btn--primary mv-btn--sm" type="button" @click="openForm()">
-              <Icon name="plus" :size="14" /> 添加文件夹
+            <button
+              class="mv-btn mv-btn--primary mv-btn--sm"
+              type="button"
+              :disabled="selectingLibrary"
+              @click="addLibraryFromSystemPicker"
+            >
+              <Icon :name="selectingLibrary ? 'spinner' : 'folderOpen'" :size="14" :class="{ 'mv-spin': selectingLibrary }" />
+              选择媒体文件夹
             </button>
           </div>
 
@@ -220,10 +238,16 @@ onMounted(() => {
           <div v-else-if="!libs.list.length" class="mv-empty mv-empty--sm">
             <div class="mv-empty__icon"><Icon name="folderOpen" :size="22" /></div>
             <div class="mv-empty__title">还没有媒体库</div>
-            <p class="mv-empty__desc">添加一个视频或图片文件夹，然后手动扫描即可开始使用。</p>
+            <p class="mv-empty__desc">选择一个文件夹，应用会识别视频和图片并立即开始扫描。</p>
             <div class="mv-empty__actions">
-              <button class="mv-btn mv-btn--primary" type="button" @click="openForm()">
-                <Icon name="plus" :size="15" /> 添加文件夹
+              <button
+                class="mv-btn mv-btn--primary"
+                type="button"
+                :disabled="selectingLibrary"
+                @click="addLibraryFromSystemPicker"
+              >
+                <Icon :name="selectingLibrary ? 'spinner' : 'folderOpen'" :size="15" :class="{ 'mv-spin': selectingLibrary }" />
+                选择媒体文件夹
               </button>
             </div>
           </div>
@@ -610,9 +634,6 @@ onMounted(() => {
               placeholder="D:\Movies"
               spellcheck="false"
             />
-            <button class="mv-btn mv-btn--ghost" type="button" @click="pickerOpen = true">
-              <Icon name="folderOpen" :size="15" /> 浏览
-            </button>
           </div>
           <span class="mv-field__hint">必须是本机的绝对路径；文件夹内容只读，不会被修改。</span>
         </label>
@@ -679,13 +700,6 @@ onMounted(() => {
         </button>
       </template>
     </Modal>
-
-    <FolderPicker
-      v-if="pickerOpen"
-      :kind="form.library_type"
-      @pick="onPick"
-      @close="pickerOpen = false"
-    />
 
     <!-- 移除媒体库 -->
     <Modal v-if="confirmDel.open" title="移除媒体库" @close="confirmDel.open = false">

@@ -60,6 +60,7 @@ export const createLibrary = (data) => api.post('/libraries/', data)
 export const updateLibrary = (id, data) => api.patch(`/libraries/${id}/`, data)
 export const deleteLibrary = (id, keepItems = false) =>
   api.delete(`/libraries/${id}/`, { params: keepItems ? { keep_items: 1 } : {} })
+export const pickAndScanLibrary = () => api.post('/libraries/pick-and-scan/')
 
 // ── 扫描（纯手动触发）──────────────────────────────
 export const triggerScan = () => api.post('/scan/')

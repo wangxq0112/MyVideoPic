@@ -53,7 +53,8 @@ class MediaLibrarySerializer(serializers.ModelSerializer):
         return os.path.isdir(obj.folder_path) if obj.folder_path else False
 
     def validate_folder_path(self, value):
-        value = (value or '').strip().strip('"').rstrip('\\/')
+        value = (value or '').strip().strip('"')
+        value = os.path.normpath(value) if value else ''
         if not value:
             raise serializers.ValidationError('请填写文件夹路径')
         if not os.path.isabs(value):
@@ -69,6 +70,19 @@ class MediaLibrarySerializer(serializers.ModelSerializer):
         if not value:
             raise serializers.ValidationError('请填写库名称')
         return value
+
+    def validate(self, attrs):
+        folder_path = attrs.get('folder_path', getattr(self.instance, 'folder_path', ''))
+        library_type = attrs.get('library_type', getattr(self.instance, 'library_type', ''))
+        if folder_path and library_type:
+            existing = MediaLibrary.objects.filter(
+                folder_path=folder_path, library_type=library_type,
+            )
+            if self.instance:
+                existing = existing.exclude(pk=self.instance.pk)
+            if existing.exists():
+                raise serializers.ValidationError('此文件夹已作为同类型媒体库添加')
+        return attrs
 
 
 class VideoSerializer(serializers.ModelSerializer):

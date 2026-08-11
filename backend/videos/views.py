@@ -7,6 +7,8 @@
 import os
 import shutil
 import string
+import subprocess
+import threading
 
 from django.conf import settings as dj_settings
 from django.db.models import Count, Q, Sum
@@ -24,7 +26,7 @@ from .models import (
     MediaLibrary, Photo, ScanRecord, Video,
 )
 from .scanner import (
-    PHOTO_EXTENSIONS, VIDEO_EXTENSIONS, ffmpeg_available,
+    PHOTO_EXTENSIONS, SKIP_DIR_NAMES, VIDEO_EXTENSIONS, ffmpeg_available,
     get_active_scan, get_scan_progress, request_cancel, start_scan,
 )
 from .serializers import (
@@ -49,6 +51,60 @@ ORDERING_MAP = {
 
 def _bad(msg, code=400):
     return Response({'error': msg}, status=code)
+
+
+_folder_dialog_lock = threading.Lock()
+
+
+def _choose_folder_with_system_dialog() -> tuple[str | None, str | None]:
+    """打开 Windows 原生选目录窗口，返回 (路径, 错误信息)."""
+    if os.name != 'nt':
+        return None, '系统文件夹选择仅支持 Windows 本机环境'
+    powershell = shutil.which('powershell.exe') or shutil.which('powershell')
+    if not powershell:
+        return None, '未找到 Windows PowerShell，无法打开系统文件夹选择器'
+
+    script = r'''
+Add-Type -AssemblyName System.Windows.Forms
+$dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+$dialog.Description = '选择要添加的媒体文件夹'
+$dialog.ShowNewFolderButton = $false
+if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+    [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+    [Console]::Write($dialog.SelectedPath)
+}
+'''
+    flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+    try:
+        result = subprocess.run(
+            [powershell, '-NoProfile', '-STA', '-Command', script],
+            capture_output=True, text=True, encoding='utf-8', errors='replace',
+            creationflags=flags,
+        )
+    except OSError:
+        return None, '无法启动系统文件夹选择器'
+    if result.returncode != 0:
+        return None, '系统文件夹选择器启动失败'
+    raw_path = result.stdout.strip().lstrip('\ufeff')
+    selected = os.path.normpath(raw_path) if raw_path else ''
+    return (selected or None), None
+
+
+def _detect_library_types(folder_path: str) -> dict[str, int]:
+    """只读遍历一次，统计选中目录内的视频和图片文件数。"""
+    counts = {'video': 0, 'photo': 0}
+    for root, dirs, files in os.walk(folder_path):
+        dirs[:] = [name for name in dirs
+                   if name not in SKIP_DIR_NAMES and not name.startswith('.')]
+        for filename in files:
+            if filename.startswith('.'):
+                continue
+            ext = os.path.splitext(filename)[1].lower()
+            if ext in VIDEO_EXTENSIONS:
+                counts['video'] += 1
+            elif ext in PHOTO_EXTENSIONS:
+                counts['photo'] += 1
+    return counts
 
 
 class MediaListMixin:
@@ -203,6 +259,59 @@ class MediaLibraryViewSet(viewsets.ModelViewSet):
                             pass
                 items.delete()
         instance.delete()
+
+
+@api_view(['POST'])
+def pick_and_scan_library(request):
+    """选择本机目录，按内容创建视频/图片库并立即扫描新建库。"""
+    if not _folder_dialog_lock.acquire(blocking=False):
+        return _bad('系统文件夹选择器已打开，请先完成选择', 409)
+    try:
+        folder_path, dialog_error = _choose_folder_with_system_dialog()
+    finally:
+        _folder_dialog_lock.release()
+    if dialog_error:
+        return _bad(dialog_error, 501)
+    if not folder_path:
+        return Response({'cancelled': True})
+    if not os.path.isdir(folder_path):
+        return _bad('所选文件夹不存在或当前无法访问', 404)
+
+    try:
+        counts = _detect_library_types(folder_path)
+    except OSError:
+        return _bad('无法读取所选文件夹', 409)
+    library_types = [kind for kind, count in counts.items() if count > 0]
+    if not library_types:
+        return _bad('所选文件夹及其子文件夹中没有可识别的视频或图片', 400)
+
+    base_name = os.path.basename(folder_path) or folder_path
+    labels = {'video': '视频', 'photo': '图片'}
+    libraries = []
+    for library_type in library_types:
+        library = MediaLibrary.objects.filter(
+            folder_path=folder_path, library_type=library_type,
+        ).first()
+        if library is None:
+            name = base_name if len(library_types) == 1 else f'{base_name}（{labels[library_type]}）'
+            library = MediaLibrary.objects.create(
+                name=name,
+                folder_path=folder_path,
+                library_type=library_type,
+                enabled=True,
+            )
+        elif not library.enabled:
+            library.enabled = True
+            library.save(update_fields=['enabled'])
+        libraries.append(library)
+
+    scan = start_scan([str(library.id) for library in libraries])
+    return Response({
+        'cancelled': False,
+        'libraries': MediaLibrarySerializer(libraries, many=True).data,
+        'detected': counts,
+        'scan': scan,
+    }, status=202)
 
 
 # ═══════════════════════════════════════════════════════

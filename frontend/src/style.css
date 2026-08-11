@@ -1279,13 +1279,25 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   background: rgb(0 0 0 / 0.94);
   display: grid;
   place-items: center;
+  overflow: hidden;
   animation: mv-fade-in 0.16s ease-out;
+}
+.mv-viewer__canvas {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  touch-action: none;
 }
 .mv-viewer__img {
   max-width: 94vw;
   max-height: 88vh;
   object-fit: contain;
   border-radius: var(--r-md);
+  transform-origin: center;
+  transition: transform 0.16s ease-out;
+  user-select: none;
 }
 .mv-viewer__bar {
   position: absolute;
@@ -1296,6 +1308,7 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   display: flex;
   align-items: center;
   gap: 12px;
+  z-index: 2;
   background: linear-gradient(180deg, rgb(0 0 0 / 0.75), transparent);
 }
 .mv-viewer__name {
@@ -1316,6 +1329,7 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   place-items: center;
   background: rgb(255 255 255 / 0.1);
   color: #fff;
+  z-index: 2;
   transition: background-color 0.15s;
 }
 .mv-viewer__nav:hover { background: rgb(255 255 255 / 0.2); }

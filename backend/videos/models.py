@@ -21,7 +21,7 @@ class MediaLibrary(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=256, verbose_name='库名称')
     folder_path = models.CharField(
-        max_length=2048, unique=True, verbose_name='物理文件夹绝对路径',
+        max_length=2048, verbose_name='物理文件夹绝对路径',
     )
     library_type = models.CharField(
         max_length=16, choices=LibraryType.choices,
@@ -40,6 +40,12 @@ class MediaLibrary(models.Model):
     class Meta:
         db_table = 'media_libraries'
         ordering = ['library_type', '-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=('folder_path', 'library_type'),
+                name='unique_library_path_and_type',
+            ),
+        ]
         verbose_name = '媒体库'
         verbose_name_plural = '媒体库'
 

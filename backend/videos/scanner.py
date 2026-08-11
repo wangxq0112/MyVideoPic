@@ -335,7 +335,7 @@ def _stat_file(path: str) -> tuple[int, float] | None:
 # 主扫描流程
 # ═══════════════════════════════════════════════════════
 
-def scan_libraries(task_id: str) -> None:
+def scan_libraries(task_id: str, library_ids: tuple[str, ...] | None = None) -> None:
     """后台线程入口 — 增量扫描全部启用的库."""
     global _active_task_id
     from .models import MediaLibrary, Photo, ScanRecord, Video
@@ -350,7 +350,10 @@ def scan_libraries(task_id: str) -> None:
                 stage_label='遍历文件夹', message='正在遍历媒体库文件夹…')
 
         prefs = _scan_settings()
-        libraries = list(MediaLibrary.objects.filter(enabled=True))
+        libraries_query = MediaLibrary.objects.filter(enabled=True)
+        if library_ids is not None:
+            libraries_query = libraries_query.filter(id__in=library_ids)
+        libraries = list(libraries_query)
         if not libraries:
             _update(task_id, status='completed', stage='done', stage_label='完成',
                     message='没有启用的媒体库，请先在设置中添加文件夹', percent=100.0)
@@ -679,9 +682,9 @@ def _prune_tasks(keep: int = 20) -> None:
         _scan_tasks.pop(tid, None)
 
 
-def start_scan() -> dict:
+def start_scan(library_ids: list[str] | tuple[str, ...] | None = None) -> dict:
     """
-    启动一次扫描.
+    启动一次扫描。传入 library_ids 时只扫描指定媒体库。
 
     同一时刻只允许一个扫描任务；重复触发返回既有任务，避免并发写同一批记录。
     """
@@ -695,6 +698,7 @@ def start_scan() -> dict:
         _scan_tasks[task_id] = _new_task_state(task_id)
         _active_task_id = task_id
 
-    threading.Thread(target=scan_libraries, args=(task_id,),
+    target_ids = tuple(str(item) for item in library_ids) if library_ids is not None else None
+    threading.Thread(target=scan_libraries, args=(task_id, target_ids),
                      daemon=True, name=f'scan-{task_id}').start()
     return {'task_id': task_id, 'status': 'started', 'already_running': False}
