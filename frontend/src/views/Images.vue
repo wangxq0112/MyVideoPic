@@ -9,6 +9,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import Icon from '../components/Icon.vue'
 import ImageViewer from '../components/ImageViewer.vue'
 import MediaGrid from '../components/MediaGrid.vue'
+import MediaPagination from '../components/MediaPagination.vue'
 import MediaToolbar from '../components/MediaToolbar.vue'
 import { errMsg, recordHistory } from '../api/api.js'
 import { useLibrariesStore } from '../stores/libraries.js'
@@ -101,8 +102,6 @@ async function action(key, photo) {
       :items="photos.list"
       kind="photo"
       :loading="photos.loading"
-      :loading-more="photos.loadingMore"
-      :has-more="photos.hasMore"
       :grid-class="settings.gridClass"
       :show-filename="settings.appearance.show_filename"
       :empty-title="empty.title"
@@ -110,7 +109,6 @@ async function action(key, photo) {
       @open="open"
       @fav="fav"
       @action="action"
-      @more="photos.loadMore()"
     >
       <template #empty-actions>
         <router-link v-if="!libs.photoLibs.length" to="/settings" class="mv-btn mv-btn--primary">
@@ -126,6 +124,14 @@ async function action(key, photo) {
         </button>
       </template>
     </MediaGrid>
+
+    <MediaPagination
+      :current-page="photos.currentPage"
+      :total-pages="photos.totalPages"
+      :total="photos.total"
+      :loading="photos.loading"
+      @page="photos.goToPage($event)"
+    />
 
     <ImageViewer
       v-if="viewerIndex >= 0 && photos.list[viewerIndex]"

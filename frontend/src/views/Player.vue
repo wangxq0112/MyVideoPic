@@ -168,7 +168,7 @@ async function loadPlaylist(currentVideo) {
   try {
     const res = await fetchVideos({
       library: currentVideo.library_id,
-      ordering: 'name',
+      ordering: videos.filters.ordering,
       page_size: 200,
     })
     if (video.value?.id !== currentVideo.id) return

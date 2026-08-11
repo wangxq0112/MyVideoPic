@@ -1,5 +1,7 @@
 # MyVideoPic
 
+For AI-assisted follow-up development, read [AI_HANDOFF.md](AI_HANDOFF.md) before changing the project.
+
 纯本地极简媒体中心。把硬盘上散落的视频和图片编目成一个能刷、能搜、能整理的库。
 
 * **完全离线** —— 不请求任何外部接口，不上传任何数据，断网照常使用
@@ -117,8 +119,8 @@ npm run build          # 产物在 frontend/dist
 ### 浏览
 
 视频页与图片页共用一套筛选：分类胶囊、媒体库下拉、排序下拉、仅收藏开关。
-筛选全部由后端完成，滚动到底自动加载下一页。封面用 `IntersectionObserver`
-懒加载，上千条也不会一次性打满浏览器连接池。
+筛选、排序与分页均由后端完成。视频和图片主界面每页显示 24 项，底部提供页码、上一页和下一页；
+封面按当前页懒加载，上千条媒体也不会一次性打满浏览器连接池。
 
 ### 文件操作
 

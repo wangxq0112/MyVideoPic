@@ -7,6 +7,7 @@ import { useRouter } from 'vue-router'
 
 import Icon from '../components/Icon.vue'
 import MediaGrid from '../components/MediaGrid.vue'
+import MediaPagination from '../components/MediaPagination.vue'
 import MediaToolbar from '../components/MediaToolbar.vue'
 import { errMsg } from '../api/api.js'
 import { useLibrariesStore } from '../stores/libraries.js'
@@ -95,8 +96,6 @@ async function action(key, video) {
       :items="videos.list"
       kind="video"
       :loading="videos.loading"
-      :loading-more="videos.loadingMore"
-      :has-more="videos.hasMore"
       :grid-class="settings.gridClass"
       :show-filename="settings.appearance.show_filename"
       :empty-title="empty.title"
@@ -104,7 +103,6 @@ async function action(key, video) {
       @open="open"
       @fav="fav"
       @action="action"
-      @more="videos.loadMore()"
     >
       <template #empty-actions>
         <router-link v-if="!libs.videoLibs.length" to="/settings" class="mv-btn mv-btn--primary">
@@ -120,5 +118,13 @@ async function action(key, video) {
         </button>
       </template>
     </MediaGrid>
+
+    <MediaPagination
+      :current-page="videos.currentPage"
+      :total-pages="videos.totalPages"
+      :total="videos.total"
+      :loading="videos.loading"
+      @page="videos.goToPage($event)"
+    />
   </div>
 </template>

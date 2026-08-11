@@ -228,6 +228,33 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 }
 .mv-page__meta { font-size: 13px; color: var(--text-lo); }
 
+.mv-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  color: var(--text-lo);
+  font-size: 12px;
+}
+.mv-pagination__controls { display: flex; align-items: center; gap: 4px; }
+.mv-pagination__page {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-md);
+  color: var(--text-mid);
+  font-size: 12px;
+}
+.mv-pagination__page:hover:not(:disabled) { background: var(--ink-800); color: var(--text-hi); }
+.mv-pagination__page.is-active { background: var(--brand-600); color: #fff; }
+.mv-pagination__ellipsis { width: 20px; text-align: center; }
+@media (max-width: 560px) {
+  .mv-pagination { align-items: flex-start; flex-direction: column; }
+  .mv-pagination__controls { width: 100%; justify-content: space-between; }
+}
+
 /* 两栏（设置页：左侧栏 + 右内容）*/
 .mv-split {
   display: grid;
