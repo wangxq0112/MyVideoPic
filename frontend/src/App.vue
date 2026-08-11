@@ -129,7 +129,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
     <header class="mv-topbar">
       <div class="mv-topbar__inner">
         <router-link to="/videos" class="mv-brand">
-          <span class="mv-brand__mark"><Icon name="play" :size="13" /></span>
+          <img class="mv-brand__mark" src="/favicon.svg" alt="" />
           MyVideoPic
         </router-link>
 

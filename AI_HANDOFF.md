@@ -38,6 +38,7 @@ Core workflows:
 | Main views | `frontend/src/views/Videos.vue`, `Images.vue`, `Player.vue` | Media grids, player, playlist, viewer interactions |
 | Shared components | `frontend/src/components/` | Cards, grid, toolbar, dialogs, pagination, viewer |
 | Styles | `frontend/src/style.css` | Handwritten design system using the `mv-` prefix |
+| App mark | `frontend/public/favicon.svg` | Local blue film-and-play mark used by the favicon and top-bar brand |
 
 ## Maintenance Topology
 

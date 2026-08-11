@@ -194,13 +194,8 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   white-space: nowrap;
 }
 .mv-brand__mark {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
-  display: grid;
-  place-items: center;
-  color: #fff;
+  width: 24px;
+  height: 24px;
   flex: none;
 }
 
