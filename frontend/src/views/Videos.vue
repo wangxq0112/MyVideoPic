@@ -81,7 +81,11 @@ async function action(key, video) {
       :categories="libs.videoCategories"
       :libraries="libs.videoLibs"
       :orderings="ORDERINGS"
+      :current-page="videos.currentPage"
+      :total-pages="videos.totalPages"
+      :loading="videos.loading"
       @change="videos.applyFilters($event)"
+      @page="videos.goToPage($event)"
     />
 
     <div v-if="videos.error" class="mv-alert mv-alert--danger" style="margin-bottom: 16px">

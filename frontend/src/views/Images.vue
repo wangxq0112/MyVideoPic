@@ -87,7 +87,11 @@ async function action(key, photo) {
       :categories="libs.photoCategories"
       :libraries="libs.photoLibs"
       :orderings="ORDERINGS"
+      :current-page="photos.currentPage"
+      :total-pages="photos.totalPages"
+      :loading="photos.loading"
       @change="photos.applyFilters($event)"
+      @page="photos.goToPage($event)"
     />
 
     <div v-if="photos.error" class="mv-alert mv-alert--danger" style="margin-bottom: 16px">

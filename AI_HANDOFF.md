@@ -59,6 +59,7 @@ Core workflows:
 ## Current Behavior To Preserve
 
 - Video and image lists use server-side pagination with 24 items per page. The user changes pages using the bottom pagination control; do not restore infinite scrolling.
+- Video and image toolbars keep the library and ordering controls to the left of fixed previous/next page buttons. The buttons use the same 24-item server-side pagination state as the bottom page navigator and remain visible when only one page exists (disabled at the boundary).
 - The video player playlist is scoped to the current video library and uses the same active `videos.filters.ordering` sort value as the main video library.
 - The playlist shows a thumbnail, title, duration, and file size. Its next-video action follows that list and displays a localized end-of-playlist notice at the end.
 - The playlist header shows the active position and total as `2/18`. The player return button prepares the current library, active ordering, and the corresponding 24-item video page before routing to `/videos`; do not replace it with browser-history navigation.

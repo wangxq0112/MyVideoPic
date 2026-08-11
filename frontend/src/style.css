@@ -392,6 +392,19 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   flex-wrap: wrap;
 }
 .mv-toolbar__grow { flex: 1 1 auto; min-width: 0; }
+.mv-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  flex: none;
+}
+.mv-toolbar__pager {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
 
 .mv-select {
   height: 32px;
@@ -409,6 +422,19 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   cursor: pointer;
 }
 .mv-select:hover { border-color: var(--line-strong); color: var(--text-hi); }
+
+@media (max-width: 680px) {
+  .mv-toolbar__actions {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .mv-toolbar__actions .mv-select {
+    min-width: 0;
+    flex: 1 1 0;
+  }
+}
 
 .mv-input {
   height: 34px;
