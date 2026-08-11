@@ -25,10 +25,10 @@ from .models import (
     AppSetting, ContentType, Favorite, HistoryEntry,
     MediaLibrary, Photo, ScanRecord, Video,
 )
-from .scanner import (
-    PHOTO_EXTENSIONS, SKIP_DIR_NAMES, VIDEO_EXTENSIONS, ffmpeg_available,
-    get_active_scan, get_scan_progress, request_cancel, start_scan,
-)
+from .scanner import get_active_scan, get_scan_progress, request_cancel, start_scan
+from .scanning.detect import PHOTO_EXTENSIONS, SKIP_DIR_NAMES, VIDEO_EXTENSIONS
+from .scanning.extract import ffmpeg_available
+from .services import detect_library_media_types
 from .serializers import (
     FavoriteSerializer, HistorySerializer, MediaLibrarySerializer,
     PhotoSerializer, ScanRecordSerializer, VideoSerializer,
@@ -278,7 +278,7 @@ def pick_and_scan_library(request):
         return _bad('所选文件夹不存在或当前无法访问', 404)
 
     try:
-        counts = _detect_library_types(folder_path)
+        counts = detect_library_media_types(folder_path)
     except OSError:
         return _bad('无法读取所选文件夹', 409)
     library_types = [kind for kind, count in counts.items() if count > 0]

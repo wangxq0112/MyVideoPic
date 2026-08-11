@@ -1,0 +1,11 @@
+/* Stable semantic names for new components. Existing mv-* tokens remain the
+   compatibility layer while the stylesheet is migrated incrementally. */
+:root {
+  --bg-main: var(--ink-900);
+  --bg-panel: var(--ink-850);
+  --bg-card: var(--ink-800);
+  --text-main: var(--text-hi);
+  --text-muted: var(--text-mid);
+  --primary: var(--brand-500);
+  --radius: var(--r-card);
+}

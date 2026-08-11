@@ -39,6 +39,20 @@ Core workflows:
 | Shared components | `frontend/src/components/` | Cards, grid, toolbar, dialogs, pagination, viewer |
 | Styles | `frontend/src/style.css` | Handwritten design system using the `mv-` prefix |
 
+## Maintenance Topology
+
+- `backend/videos/scanner.py` owns scan orchestration, incremental database sync,
+  and the one-active-scan rule. Folders selected while it is active are queued
+  for one follow-up scan; they must never be silently skipped.
+- `backend/videos/scanning/` contains the isolated read-only scan helpers:
+  `detect.py` recognizes supported files, `extract.py` runs local `ffprobe`,
+  and `thumbnail.py` writes only UUID-named files to `.app_data`.
+- `backend/videos/services.py` contains reusable application services for
+  library detection that do not belong in HTTP views.
+- `frontend/src/api/` is organized by resource (`media`, `libraries`, `tasks`,
+  and `settings`). `api.js` is a compatibility facade; new code should import
+  the focused module instead of adding requests to a component.
+
 ## Current Behavior To Preserve
 
 - Video and image lists use server-side pagination with 24 items per page. The user changes pages using the bottom pagination control; do not restore infinite scrolling.

@@ -25,11 +25,17 @@ from django.conf import settings
 from django.utils import timezone
 
 from .image_utils import generate_image_thumbnail
+from .scanning.extract import extract_video_metadata
+from .scanning.thumbnail import generate_video_thumbnail, remove_thumbnail
 
 # ── 内存任务状态表（单用户本地应用，无需 Celery/Redis）──────
 _scan_tasks: dict[str, dict] = {}
 _lock = threading.RLock()
 _active_task_id: str | None = None
+# Libraries selected while a scan is running are accumulated here.  A follow-up
+# scan starts after the active scan has committed its record, so no selection is
+# silently skipped and the single-scan invariant still holds.
+_queued_library_ids: set[str] = set()
 
 # Windows 下隐藏 ffmpeg/ffprobe 子进程控制台窗口
 _SUBPROCESS_FLAGS = {}
@@ -476,10 +482,16 @@ def scan_libraries(task_id: str, library_ids: tuple[str, ...] | None = None) -> 
                 ScanRecord.objects.filter(id__in=list(stale)).delete()
         except Exception:
             pass
+        queued_library_ids: tuple[str, ...] | None = None
         with _lock:
             if _active_task_id == task_id:
                 _active_task_id = None
+            if _queued_library_ids:
+                queued_library_ids = tuple(_queued_library_ids)
+                _queued_library_ids.clear()
             _prune_tasks()
+        if queued_library_ids:
+            start_scan(queued_library_ids)
 
 
 def _cleanup_missing(model, scanned_lib_ids: list[str], seen_paths: set[str]) -> int:
@@ -508,7 +520,7 @@ def _cleanup_missing(model, scanned_lib_ids: list[str], seen_paths: set[str]) ->
         return 0
 
     for cover in stale_covers:
-        _remove_cover(cover)
+        remove_thumbnail(cover)
     deleted, _ = model.objects.filter(id__in=stale_ids).delete()
     return len(stale_ids)
 
@@ -542,7 +554,7 @@ def _sync_video(filepath: str, lib_id: str, make_thumb: bool = True) -> str:
             existing.save(update_fields=['browser_compatible'])
             return 'updated'
 
-        probe = _run_ffprobe(filepath)
+        probe = extract_video_metadata(filepath)
         if probe is None and not unchanged:
             return 'failed'
         if probe is not None:
@@ -560,12 +572,12 @@ def _sync_video(filepath: str, lib_id: str, make_thumb: bool = True) -> str:
         existing.library_id = lib_id
         existing.year = existing.year or parse_year(existing.original_filename)
         if not has_cover and make_thumb:
-            existing.cover_path = _generate_video_thumbnail(
+            existing.cover_path = generate_video_thumbnail(
                 filepath, str(existing.id), existing.duration)
         existing.save()
         return 'updated'
 
-    probe = _run_ffprobe(filepath)
+    probe = extract_video_metadata(filepath)
     if probe is None:
         return 'failed'
     info = _parse_probe(probe, filepath)
@@ -590,12 +602,12 @@ def _sync_video(filepath: str, lib_id: str, make_thumb: bool = True) -> str:
         library_id=lib_id,
     )
     if make_thumb:
-        vid.cover_path = _generate_video_thumbnail(
+        vid.cover_path = generate_video_thumbnail(
             filepath, str(vid.id), info['duration'])
     try:
         vid.save()
     except Exception:
-        _remove_cover(vid.cover_path)
+        remove_thumbnail(vid.cover_path)
         return 'failed'
     return 'added'
 
@@ -656,7 +668,7 @@ def _sync_photo(filepath: str, lib_id: str) -> str:
     try:
         photo.save()
     except Exception:
-        _remove_cover(cover)
+        remove_thumbnail(cover)
         return 'failed'
     return 'added'
 
@@ -692,8 +704,11 @@ def start_scan(library_ids: list[str] | tuple[str, ...] | None = None) -> dict:
     with _lock:
         active = get_active_scan()
         if active:
+            if library_ids is not None:
+                _queued_library_ids.update(str(item) for item in library_ids)
             return {'task_id': active['task_id'], 'status': active['status'],
-                    'already_running': True}
+                    'already_running': True,
+                    'queued': library_ids is not None}
         task_id = uuid.uuid4().hex[:12]
         _scan_tasks[task_id] = _new_task_state(task_id)
         _active_task_id = task_id
