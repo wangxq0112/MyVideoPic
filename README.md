@@ -2,6 +2,25 @@
 
 For AI-assisted follow-up development, read [AI_HANDOFF.md](AI_HANDOFF.md) before changing the project.
 
+## Development Structure
+
+The application keeps one Django app and one Vue application. The files below
+are the extension points for future maintenance; they do not change the local
+or offline-only behavior described in this document.
+
+- `backend/videos/scanner.py` coordinates one active scan at a time. Libraries
+  selected while a scan is active are queued for a follow-up scan.
+- `backend/videos/scanning/` contains the read-only scan helpers: `detect.py`,
+  `extract.py`, and `thumbnail.py`. Thumbnail output remains UUID-named under
+  `backend/.app_data/`.
+- `backend/videos/services.py` contains reusable library-detection logic that
+  is independent from Django request handling.
+- `frontend/src/api/` is organized into `client.js`, `media.js`,
+  `libraries.js`, `tasks.js`, and `settings.js`. `api.js` remains a compatible
+  facade for existing imports.
+- `frontend/src/styles/variables.css` provides semantic design tokens for new
+  components while the existing `mv-` design system remains in `style.css`.
+
 纯本地极简媒体中心。把硬盘上散落的视频和图片编目成一个能刷、能搜、能整理的库。
 
 * **完全离线** —— 不请求任何外部接口，不上传任何数据，断网照常使用
